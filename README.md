@@ -1,5 +1,6 @@
 ### DiscordTagIDs
 Version 1.0
+[![Developer Discord]](https://discord.gg/m39AUuSatU)
 
 This is a script that added prefixes to ID tags above players :) by using fully discord roles thanks to IllusiveTea!
 
