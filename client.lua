@@ -2,6 +2,8 @@
 
 local playerDiscordNames = {}
 local activeTagTracker = {}
+local hideTags = {}
+local hidePrefix = {}
 local formatDisplayedName = "[{SERVER_ID}]"
 
 local ignorePlayerNameDistance = false
@@ -53,13 +55,31 @@ function Draw2DText(x, y, text, scale, center)
     DrawText(x, y)
 end
 
--- Helpers
-local function has_value(tab, val)
-    for _, v in ipairs(tab) do
-        if v == val then return true end
+-- Server state
+local function toSet(list)
+    local set = {}
+    for _, v in ipairs(list or {}) do
+        set[tostring(v)] = true
     end
-    return false
+    return set
 end
+
+RegisterNetEvent('GetStaffID:StaffStr:Return')
+AddEventHandler('GetStaffID:StaffStr:Return', function(tags, hiddenTags, hiddenPrefixes)
+    activeTagTracker = tags or {}
+    hideTags = toSet(hiddenTags)
+    hidePrefix = toSet(hiddenPrefixes)
+end)
+
+RegisterNetEvent('DiscordTag:Server:GetDiscordName:Return')
+AddEventHandler('DiscordTag:Server:GetDiscordName:Return', function(serverId, discordUsername, format, useDiscordName)
+    if useDiscordName and discordUsername then
+        playerDiscordNames[tostring(serverId)] = discordUsername
+    end
+    if format then
+        formatDisplayedName = format
+    end
+end)
 
 -- Update player tags
 local colors = {"~g~", "~b~", "~y~", "~o~", "~r~", "~p~", "~w~"}
@@ -71,7 +91,8 @@ function triggerTagUpdate()
         local ped = GetPlayerPed(id)
         if ped == GetPlayerPed(-1) and not Config.ShowOwnTag then goto continue end
 
-        local activeTag = activeTagTracker[GetPlayerServerId(id)] or ""
+        local serverId = tostring(GetPlayerServerId(id))
+        local activeTag = activeTagTracker[serverId] or ""
         local x1, y1, z1 = table.unpack(GetEntityCoords(PlayerPedId()))
         local x2, y2, z2 = table.unpack(GetEntityCoords(ped))
         local distance = math.floor(GetDistanceBetweenCoords(x1, y1, z1, x2, y2, z2, true))
@@ -79,7 +100,7 @@ function triggerTagUpdate()
         if distance > playerNamesDist and not ignorePlayerNameDistance then goto continue end
         if Config.RequiresLineOfSight and not HasEntityClearLosToEntity(PlayerPedId(), ped, 17) then goto continue end
 
-        local name = playerDiscordNames[GetPlayerServerId(id)] or GetPlayerName(id)
+        local name = playerDiscordNames[serverId] or GetPlayerName(id)
         local displayName = formatDisplayedName:gsub("{PLAYER_NAME}", name):gsub("{SERVER_ID}", GetPlayerServerId(id))
 
         if NetworkIsPlayerTalking(id) then
@@ -88,8 +109,8 @@ function triggerTagUpdate()
             red, green, blue = 255, 255, 255
         end
 
-        if not has_value(hideTags, GetPlayerName(id)) then
-            if not has_value(hidePrefix, GetPlayerName(id)) then
+        if not hideTags[serverId] then
+            if not hidePrefix[serverId] then
                 -- Rainbow tag handling
                 if activeTag:find("~RGB~") then
                     local tag = activeTag:gsub("~RGB~", colors[colorIndex])
@@ -124,7 +145,7 @@ if Config.HUD.Display then
     Citizen.CreateThread(function()
         while true do
             Citizen.Wait(0)
-            local headtag = activeTagTracker[GetPlayerServerId(PlayerId())] or Config.roleList[1][2] or "N/A"
+            local headtag = activeTagTracker[tostring(GetPlayerServerId(PlayerId()))] or "N/A"
             Draw2DText(Config.HUD.x, Config.HUD.y, Config.HUD.Format:gsub("{HEADTAG}", headtag), Config.HUD.Scale, true)
         end
     end)
